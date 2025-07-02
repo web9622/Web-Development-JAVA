@@ -1,4 +1,4 @@
-# practice_python
+# practice_JAVA
 2025년 수원 휴먼교육센터
 
 ## [휴먼교육센터] 자바,파이썬기반AI활용 소프트웨어 개발
