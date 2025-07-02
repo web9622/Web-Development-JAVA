@@ -1,0 +1,358 @@
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+
+class Account{
+	private String id;
+	private String name;
+	private double balance;
+	
+	public Account(String id,String name,double initialBalance) {
+		this.id=id;
+		this.name=name;
+		this.balance=initialBalance;
+	}
+	//getter,setter
+
+	public String getId() {
+		return id;
+	}
+
+	public void setId(String id) {
+		this.id = id;
+	}
+
+	public String getName() {
+		return name;
+	}
+
+	public void setName(String name) {
+		this.name = name;
+	}
+
+	public double getBalance() {
+		return balance;
+	}
+
+	public void setBalance(double balance) {
+		this.balance = balance;
+	}
+	
+
+}
+
+public class BankSystem {
+	private List<Account> accounts;
+	private boolean isLoggedIn;
+	private String  currentUser;
+	public BankSystem() {
+		super();
+		this.accounts = new ArrayList<>();
+		this.isLoggedIn = false;
+		this.currentUser = null;
+		}
+	//3. 계좌생성
+	public void createAccount(String name, double initialBalance) {
+		String accountId=generateAccountId();
+		Account account=new Account(accountId,name,initialBalance);
+		accounts.add(account);
+		System.out.println("계좌생성완료 계좌번호:"+accountId);
+		}
+	//4. 계좌 목록보기
+	public void displayAllAccounts() {
+		if(accounts.isEmpty()) {
+			System.out.println("등록된 계좌 없음");
+		}else {
+			for(Account account:accounts) {
+				System.out.println("계좌번호:"+account.getId()+",이름:"+account.getName());
+			}
+		}
+	}
+	//5. 계좌상세 정보
+	public void displayAccountDetails(String accountId) {
+		Account foundAccount=findAccountById(accountId);
+		if(foundAccount!=null) {
+			System.out.println("계좌번호"+foundAccount.getId());
+			System.out.println("이름"+foundAccount.getName());
+			System.out.println("잔고"+foundAccount.getBalance());
+		}else {
+			System.out.println("없는 계좌");
+		}
+	}
+    //6. 입금
+	public void deposit(String accountId,double amount) {
+		Account account =findAccountById(accountId);
+		if(account!=null) {
+			account.setBalance(account.getBalance()+amount);
+			System.out.println("입금 후 잔액"+account.getBalance()+"원");
+		}else {
+			System.out.println("해당 계좌 없음");
+		}
+	}
+	
+	//7. 출금
+		public void withdraw(String accountId,double amount) {
+			Account account=findAccountById(accountId);
+			if(account!=null && account.getBalance()>=amount ) {
+				
+			}else if(account==null) {
+				System.out.println("해당 계좌없음");
+			}else {System.out.println("잔액부족");}
+		}
+			
+	//8. 이체
+	public void transfer(String fromAccountId, String toAccountId, double amount) {
+	Account fromAccount=findAccountById(fromAccountId);	
+	Account toAccount=findAccountById(toAccountId);	
+	if(fromAccount!=null&&toAccount!=null&&fromAccount.getBalance()>=amount) {
+		fromAccount.setBalance(fromAccount.getBalance()-amount);
+		toAccount.setBalance(fromAccount.getBalance()+amount);
+		System.out.println("이체완료. 송금 후 잔액:"+fromAccount.getBalance());
+		System.out.println("송금 받은 계좌 잔액:"+toAccount.getBalance());
+		}else if(fromAccount==null||toAccount==null) {
+			System.out.println("송금자 or 송금 받는자 계좌정보 확인");
+		} else {
+			System.out.println("출금계좌 잔액 부족");
+		}
+	}
+	
+	//9. 계좌 삭제
+		public void deleteAccount(String accountId) {
+			Account account=findAccountById(accountId);
+			if(account!=null) {
+				accounts.remove(account);
+				System.out.println("계좌삭제 완료");	
+			}else {
+				System.out.println("해당계좌없음 ");
+			}
+		}
+	
+	
+	
+	//관리자와 사용자 로그인
+//		public boolean login(String username,String password) {
+//			if((username.equals("admin")&&password.equals("password"))||
+//				(username.equals(currentUser) && password.equals("12345"))) {
+//				isLoggedIn=true;
+//				return true;
+//			}else {return false;}
+//		}
+		public boolean login(String username,String password) {
+			if(username.equals("admin")&&password.equals("password")) {
+				isLoggedIn=true;
+				return true;
+			}
+			//사용자계좌정보를 기반으로 로그인
+			for(Account acc:accounts) {
+				if(acc.getName().equals(username)&&password.equals("12345")) {
+					isLoggedIn=true;
+					currentUser=username;
+					return true;
+				}
+			}
+			return false;
+		}
+		
+			//로그아웃상태 값
+		public void logout() {
+			isLoggedIn=false;
+			currentUser=null;
+		}	
+		
+		//관리자가 로그인 되어있으면 true리턴
+		public boolean isAdminLoggedIn() {
+			return isLoggedIn && currentUser.equals("admin");
+		}
+		//사용자 로그인 되어 있으면 true리턴
+		public boolean isUserLoggedIn() {
+			return isLoggedIn && !currentUser.equals("admin");
+		}
+	//Account 파라이터타입 메서드
+		private Account findAccountById(String accountId) {
+			for(Account account:accounts) {
+				if(account.getId().equals(accountId)) {
+					return account;
+				}
+			}
+			return null;
+		}
+			
+		private String generateAccountId() {
+			return String.valueOf(accounts.size()+1);//AccountId를 먼저만들어놓고,account를 만들므로
+		}
+		
+//10. 프로그램 종료:데이터저장 및 불러오기
+		public void saveDataToFile() {
+			try(ObjectOutputStream oos=new ObjectOutputStream(new FileOutputStream("bank_data.dat"))){
+				oos.writeObject(accounts);
+				System.out.println("데이터저장 완료");
+			}catch(IOException e){
+				System.err.println("데이터 저장중 오류 발생:"+e.getMessage());
+			}
+		}
+		@SuppressWarnings("unchecked")
+		public void loadDataFromFile() {
+			File file=new File("bank_data.dat");
+			if(file.exists()) {
+				 try(ObjectInputStream ois=new ObjectInputStream(new FileInputStream(file))){
+				accounts=(List<Account>)ois.readObject();
+				System.out.println("데이터불러오기 완료");
+				 }catch(IOException | ClassNotFoundException e) {
+					 System.err.println("데이터 불러오기 중 오류"+e.getMessage());
+				 }
+			}else {System.out.println("저장된 파일이 없습니다.");}
+		}
+		
+		public void runMenu() {
+			Scanner scanner=new Scanner(System.in);
+			while(true) {
+				System.out.println("1. 로그인(관리자)");
+				System.out.println("2. 로그인(사용자)");
+				System.out.println("3. 계좌생성");
+				System.out.println("4. 계좌 목록보기");
+				System.out.println("5. 계좌상세 정보");
+				System.out.println("6. 입금");
+				System.out.println("7. 출금");
+				System.out.println("8. 이체");
+				System.out.println("9. 계좌 삭제");
+				System.out.println("10. 프로그램 종료");
+				
+				System.out.println("선택:");
+				int choice = scanner.nextInt();
+				scanner.nextLine();
+				
+				switch(choice) {
+				case 1:
+					loginAdmin(scanner);
+					break;
+				case 2:
+					loginUser(scanner);
+					break;
+				case 3:
+					createAccount(scanner);
+					break;
+				case 4:
+					displayAllAccounts();
+					break;
+				case 5:
+					displayAccountDetails(scanner);
+					break;
+				case 6:
+					deposit(scanner);
+					break;
+				case 7:
+					withdraw(scanner);
+					break;
+				case 8:
+					transfer(scanner);
+					break;
+				case 9:
+					deleteAccount(scanner);
+					break;
+				case 10:
+					saveDataToFile();
+					System.exit(0);
+					break;
+				default:
+					System.out.println("잘못된 선택입니다. 다시 선택하세요.");
+				}
+			}	
+		
+	}
+		
+	
+		
+		//1~10 메뉴
+		private void loginAdmin(Scanner scanner) {
+			//System.out.println("관리자ID:");
+			String username=scanner.nextLine();
+			System.out.println("관리자비번:");
+			String password=scanner.nextLine();
+			
+			if(login(username,password)) {
+				currentUser="admin";
+				System.out.println("관리자 로그인 했음");
+			}else {
+				System.out.println("로그인 실패");
+			}	
+			
+		}
+		private void loginUser(Scanner scanner) {
+			String username=scanner.nextLine();
+			String password=scanner.nextLine();
+			if(login(username,password)) {
+				currentUser=username;
+				System.out.println("사용자 로그인 성공");
+			}else {
+				System.out.println("로그인 실패");
+			}
+		}
+		private void createAccount(Scanner scanner) {
+			System.out.println("계좌주 이름:");
+			String name=scanner.nextLine();
+			System.out.println("초기잔액:");
+			double initialBalance=scanner.nextDouble();
+			scanner.nextLine();
+			createAccount(name,initialBalance);
+		}
+		
+		private void displayAccountDetails(Scanner scanner) {
+			System.out.println("조회할 계좌번호:");
+			String accountId=scanner.nextLine();
+			displayAccountDetails(accountId);
+		}
+		
+		private void deposit(Scanner scanner) {
+			System.out.println("입금할 계좌번호:");
+			String accountId=scanner.next();
+			System.out.println("입금금액:");
+			double amount=scanner.nextDouble();
+			scanner.nextLine();
+			deposit(accountId,amount);
+		}
+		
+		private void withdraw(Scanner scanner) {
+			System.out.println("출금할 계좌번호:");
+			String accountId=scanner.next();
+			System.out.println("출금 금액:");
+			double amount=scanner.nextDouble();
+			scanner.nextLine();
+			
+			withdraw(accountId,amount);
+		}
+		
+		private void transfer(Scanner scanner) {
+			System.out.println("출금계좌번호: ");
+			String fromAccountId=scanner.next();
+			System.out.println("입금계좌번호: ");
+			String toAccountId=scanner.next();
+			System.out.println("이체금액: ");
+			double amount=scanner.nextDouble();
+			scanner.nextLine();
+			
+			transfer(fromAccountId,toAccountId,amount);
+		}
+		
+		private void deleteAccount(Scanner scanner) {
+			System.out.println("삭제할 계좌번호:");
+			String accountId=scanner.next();
+			
+			deleteAccount(accountId);
+		}
+	
+	
+	
+	public static void main(String[] args) {
+		BankSystem bankSystem = new BankSystem();
+		bankSystem.loadDataFromFile();
+		bankSystem.runMenu();
+	}	
+	
+
+}
