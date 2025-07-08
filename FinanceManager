@@ -1,0 +1,621 @@
+import java.io.*;
+import java.time.LocalDate;
+import java.util.*;
+
+class User implements Serializable {
+    private String name;
+    private String accountId;
+    private double balance;
+
+    public User(String name, String accountId, double balance) {
+        this.name = name;
+        this.accountId = accountId;
+        this.balance = balance;
+    }
+
+    public String getName() { return name; }
+    public String getAccountId() { return accountId; }
+    public double getBalance() { return balance; }
+    public void setBalance(double balance) { this.balance = balance; }
+}
+
+class Income implements Serializable{
+    private double amount;
+    private String category;
+    private LocalDate eventDate;
+
+    public Income(double amount, String category, LocalDate eventDate) {
+        this.amount = amount;
+        this.category = category;
+        this.eventDate = eventDate;
+    }
+
+    public double getAmount() { return amount; }
+    public String getCategory() { return category; }
+    public LocalDate getEventDate() { return eventDate; }
+}
+
+class Expense implements Serializable {
+    private double amount;
+    private String category;
+    private LocalDate eventDate;
+
+    public Expense(double amount, String category, LocalDate eventDate) {
+        this.amount = amount;
+        this.category = category;
+        this.eventDate = eventDate;
+    }
+
+    public double getAmount() { return amount; }
+    public String getCategory() { return category; }
+    public LocalDate getEventDate() { return eventDate; }
+}
+
+class Budget implements Serializable {
+    private double limit;
+
+    public Budget(double limit) {
+        this.limit = limit;
+    }
+
+    public double getLimit() { return limit; }
+}
+
+class Category implements Serializable {
+    private String categoryName;
+
+    public Category(String categoryName) {
+        this.categoryName = categoryName;
+    }
+
+    public String getCategoryName() { return categoryName; }
+}
+
+public class FinanceManager {
+    private List<User> users;
+    private List<Category> categories;
+    private List<Budget> budgets;
+    private List<Income> incomes;
+    private List<Expense> expenses;
+    private boolean isLoggedIn;
+    private String currentUser;
+    private static int nextAccountId = 1;
+
+
+    public FinanceManager() {
+        this.users = new ArrayList<>();
+        this.categories = new ArrayList<>();
+        this.budgets = new ArrayList<>();
+        this.incomes = new ArrayList<>();
+        this.expenses = new ArrayList<>();
+        this.isLoggedIn = false;
+        this.currentUser = null;
+    }
+
+    private String generateAccountId() {
+        return String.valueOf(nextAccountId++);
+    }
+
+    //1.로그인
+    public boolean login(String username, String password) {
+        for (User u : users) {
+            if (u.getName().equals(username) && password.equals("12345")) {
+                isLoggedIn = true;
+                currentUser = username;
+                return true;
+            }
+        }
+        return false;
+    }
+//2.회원가입
+    public void registerUser(String name, double initialBalance) {
+        String accountId = generateAccountId();
+        User user = new User(name, accountId, initialBalance);
+        users.add(user);
+        System.out.println("회원가입 완료. 계좌번호: " + accountId);
+    }
+
+    private User findUserByAccountId(String accountId) {
+        for (User user : users) {
+            if (user.getAccountId().equals(accountId)) return user;
+        }
+        return null;
+    }
+//3.사용자관리
+private void manageUser(Scanner scanner) {
+    System.out.println("1. 사용자 등록");
+    System.out.println("2. 사용자 삭제");
+    System.out.println("3. 사용자 목록 조회");
+    System.out.print("선택: ");
+    int choice = scanner.nextInt();
+    scanner.nextLine();
+
+    switch (choice) {
+        case 1:
+            registerUser(scanner); // 기존 메서드 호출
+            break;
+        case 2:
+            deleteUser(scanner); // 기존 메서드 호출
+            break;
+        case 3:
+            listUsers(); // 사용자 목록 조회 메서드
+            break;
+        default:
+            System.out.println("잘못된 선택입니다.");
+    }
+}
+    private void listUsers() {
+        if (users.isEmpty()) {
+            System.out.println("등록된 사용자가 없습니다.");
+        } else {
+            System.out.println("사용자 목록:");
+            for (User user : users) {
+                System.out.printf("- 이름: %s, 계좌번호: %s, 잔액: %,.2f원\n",
+                        user.getName(), user.getAccountId(), user.getBalance());
+            }
+        }
+    }
+
+
+    public void deleteUser(String accountId) {
+        User user = findUserByAccountId(accountId);
+        if (user != null) {
+            users.remove(user);
+            System.out.println("사용자 삭제 완료");
+        } else {
+            System.out.println("해당 사용자 없음");
+        }
+    }
+//4.수입관리
+    public void addIncome(String accountId, double amount, String category, LocalDate eventDate) {
+        User user = findUserByAccountId(accountId);
+        if (user != null) {
+            user.setBalance(user.getBalance() + amount);
+            Income income = new Income(amount, category, eventDate);
+            incomes.add(income);
+            //incomes.add(new Income(amount, category, eventDate));
+            System.out.println("수입 추가 완료: 날짜=" + eventDate + ", 금액=" + amount + ", 카테고리=" + category);
+            checkBudgetLimit(category, amount);
+        }
+    }
+    //5.지출관리
+    public void addExpense(String accountId, double amount, String category, LocalDate eventDate) {
+        User user = findUserByAccountId(accountId);
+        if (user != null) {
+            if (user.getBalance() < amount) {
+                System.out.println("잔액 부족: 지출이 실패했습니다.");
+                return;
+            }
+
+            user.setBalance(user.getBalance() - amount);
+            Expense expense = new Expense(amount, category, eventDate);
+            expenses.add(expense);
+            System.out.println("지출 추가 완료: 날짜=" + eventDate + ", 금액=" + amount + ", 카테고리=" + category);
+            checkBudgetLimit(category, amount);
+        } else {
+            System.out.println("계좌를 찾을 수 없습니다.");
+        }
+    }
+    //6.예산관리 -초과알림
+    private void checkBudgetLimit(String category, double newExpense) {
+        if (budgets.isEmpty()) return;
+
+        double totalExpenses = expenses.stream().mapToDouble(Expense::getAmount).sum();
+        double budgetLimit = budgets.get(0).getLimit();
+
+        if (totalExpenses > budgetLimit) {
+            System.out.printf("예산 초과 경고: 전체 예산 한도(%,.2f원) 초과됨! 현재 총 지출: %, .2f원\n", budgetLimit, totalExpenses);
+        }
+    }
+
+    //6.예산관리 - 예산설정,예산조회
+    private void manageBudget(Scanner scanner) {
+        System.out.println("1. 예산 설정");
+        System.out.println("2. 예산 조회");
+        System.out.print("선택: ");
+        int choice = scanner.nextInt();
+        scanner.nextLine();
+
+        if (choice == 1) {
+            System.out.print("예산 한도: ");
+            double limit = scanner.nextDouble();
+            scanner.nextLine();
+
+            if(!budgets.isEmpty()){
+                budgets.clear();
+            }
+            budgets.add(new Budget(limit));
+            System.out.println("예산이 설정되었습니다.");
+        } else if (choice == 2) {
+            if (budgets.isEmpty()) {
+                System.out.println("설정된 예산이 없습니다.");
+            } else {
+                System.out.println("전체 예산 한도:"+budgets.get(0).getLimit()+"원");
+            }
+        } else {
+            System.out.println("잘못된 선택입니다.");
+        }
+    }
+//7.카테고리추가
+    public void addCategory(String categoryName) {
+        for (Category c : categories) {
+            if (c.getCategoryName().equalsIgnoreCase(categoryName)) {
+                System.out.println("이미 존재하는 카테고리입니다.");
+                return;
+            }
+        }
+        categories.add(new Category(categoryName));
+        System.out.println("카테고리 추가 완료: " + categoryName);
+    }
+//7.카테고리삭제
+    public void deleteCategory(String categoryName) {
+        Iterator<Category> iterator = categories.iterator();
+        while (iterator.hasNext()) {
+            Category c = iterator.next();
+            if (c.getCategoryName().equalsIgnoreCase(categoryName)) {
+                iterator.remove();
+                System.out.println("카테고리 삭제 완료: " + categoryName);
+                return;
+            }
+        }
+        System.out.println("존재하지 않는 카테고리입니다.");
+    }
+//7.카테고리목록
+    public void displayCategories() {
+        if (categories.isEmpty()) {
+            System.out.println("등록된 카테고리가 없습니다.");
+        } else {
+            System.out.println("카테고리 목록:");
+            for (Category c : categories) {
+                System.out.println("- " + c.getCategoryName());
+            }
+        }
+    }
+    //8.검색
+    public void search(Scanner scanner) {
+        System.out.println("검색 조건을 선택하세요:");
+        System.out.println("1. 날짜로 검색");
+        System.out.println("2. 카테고리로 검색");
+        System.out.println("3. 금액 범위로 검색");
+        System.out.print("선택: ");
+        int choice = scanner.nextInt();
+        scanner.nextLine();
+
+        switch (choice) {
+            case 1:
+                searchByDate(scanner);
+                break;
+            case 2:
+                searchByCategory(scanner);
+                break;
+            case 3:
+                searchByAmountRange(scanner);
+                break;
+            default:
+                System.out.println("잘못된 선택입니다.");
+                break;
+        }
+
+    }
+    private void searchByDate(Scanner scanner) {
+        System.out.print("검색할 날짜 (yyyy-MM-dd): ");
+        String input = scanner.nextLine();
+        LocalDate date;
+        try {
+            date = LocalDate.parse(input);
+        } catch (Exception e) {
+            System.out.println("잘못된 날짜 형식입니다.");
+            return;
+        }
+
+        System.out.println("수입 내역:");
+        for (Income i : incomes) {
+            if (i.getEventDate().equals(date)) {
+                System.out.printf("- [%s] %, .2f원 (%s)\n", i.getEventDate(), i.getAmount(), i.getCategory());
+            }
+        }
+
+        System.out.println("지출 내역:");
+        for (Expense e : expenses) {
+            if (e.getEventDate().equals(date)) {
+                System.out.printf("- [%s] %, .2f원 (%s)\n", e.getEventDate(), e.getAmount(), e.getCategory());
+            }
+        }
+    }
+    private void searchByCategory(Scanner scanner) {
+        System.out.print("검색할 카테고리: ");
+        String category = scanner.nextLine();
+
+        System.out.println("수입 내역:");
+        for (Income i : incomes) {
+            if (i.getCategory().equalsIgnoreCase(category)) {
+                System.out.printf("- [%s] %, .2f원 (%s)\n", i.getEventDate(), i.getAmount(), i.getCategory());
+            }
+        }
+
+        System.out.println("지출 내역:");
+        for (Expense e : expenses) {
+            if (e.getCategory().equalsIgnoreCase(category)) {
+                System.out.printf("- [%s] %, .2f원 (%s)\n", e.getEventDate(), e.getAmount(), e.getCategory());
+            }
+        }
+    }
+    private void searchByAmountRange(Scanner scanner) {
+        System.out.print("최소 금액: ");
+        double min = scanner.nextDouble();
+        System.out.print("최대 금액: ");
+        double max = scanner.nextDouble();
+        scanner.nextLine();
+
+        System.out.println("수입 내역:");
+        for (Income i : incomes) {
+            if (i.getAmount() >= min && i.getAmount() <= max) {
+                System.out.printf("- [%s] %, .2f원 (%s)\n", i.getEventDate(), i.getAmount(), i.getCategory());
+            }
+        }
+
+        System.out.println("지출 내역:");
+        for (Expense e : expenses) {
+            if (e.getAmount() >= min && e.getAmount() <= max) {
+                System.out.printf("- [%s] %, .2f원 (%s)\n", e.getEventDate(), e.getAmount(), e.getCategory());
+            }
+        }
+    }
+//9.통계
+    private void showStatistics() {
+        System.out.println("\n[통계 기능]");
+        calculateTotalIncomeAndExpense();
+        showMonthlyStatistics();
+        showCategoryExpenseStatistics();
+    }
+
+    // 총 수입 / 지출 계산
+    private void calculateTotalIncomeAndExpense() {
+        double totalIncome = incomes.stream().mapToDouble(Income::getAmount).sum();
+        double totalExpense = expenses.stream().mapToDouble(Expense::getAmount).sum();
+
+        System.out.printf("총 수입: %, .2f원\n", totalIncome);
+        System.out.printf("총 지출: %, .2f원\n", totalExpense);
+    }
+
+    // 월별 수입/지출 통계
+    private void showMonthlyStatistics() {
+        Map<String, Double> incomeByMonth = new TreeMap<>();
+        Map<String, Double> expenseByMonth = new TreeMap<>();
+
+        for (Income i : incomes) {
+            String key = i.getEventDate().getYear() + "-" + String.format("%02d", i.getEventDate().getMonthValue());
+            incomeByMonth.put(key, incomeByMonth.getOrDefault(key, 0.0) + i.getAmount());
+        }
+
+        for (Expense e : expenses) {
+            String key = e.getEventDate().getYear() + "-" + String.format("%02d", e.getEventDate().getMonthValue());
+            expenseByMonth.put(key, expenseByMonth.getOrDefault(key, 0.0) + e.getAmount());
+        }
+
+        System.out.println("\n[월별 수입/지출]");
+        Set<String> months = new TreeSet<>();
+        months.addAll(incomeByMonth.keySet());
+        months.addAll(expenseByMonth.keySet());
+
+        for (String month : months) {
+            double income = incomeByMonth.getOrDefault(month, 0.0);
+            double expense = expenseByMonth.getOrDefault(month, 0.0);
+            System.out.printf("%s → 수입: %, .2f원, 지출: %, .2f원\n", month, income, expense);
+        }
+    }
+
+    // 카테고리별 지출 통계
+    private void showCategoryExpenseStatistics() {
+        Map<String, Double> expenseByCategory = new TreeMap<>();
+
+        for (Expense e : expenses) {
+            String category = e.getCategory();
+            expenseByCategory.put(category, expenseByCategory.getOrDefault(category, 0.0) + e.getAmount());
+        }
+
+        System.out.println("\n[카테고리별 지출]");
+        for (Map.Entry<String, Double> entry : expenseByCategory.entrySet()) {
+            System.out.printf("%s: %, .2f원\n", entry.getKey(), entry.getValue());
+        }
+    }
+
+    //10.파일저장
+    // 저장할 파일 이름
+    private static final String SAVE_FILE = "finance_data.dat";
+
+    // 데이터 저장
+    private void saveDataToFile() {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(SAVE_FILE))) {
+            oos.writeObject(users);
+            oos.writeObject(categories);
+            oos.writeObject(budgets);
+            oos.writeObject(incomes);
+            oos.writeObject(expenses);
+            System.out.println("데이터가 저장되었습니다.");
+        } catch (IOException e) {
+            System.out.println("데이터 저장 중 오류 발생: " + e.getMessage());
+        }
+    }
+
+    // 데이터 불러오기
+    @SuppressWarnings("unchecked")
+    private void loadDataFromFile() {
+        File file = new File(SAVE_FILE);
+        if (!file.exists()) return;
+
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
+            users = (List<User>) ois.readObject();
+            categories = (List<Category>) ois.readObject();
+            budgets = (List<Budget>) ois.readObject();
+            incomes = (List<Income>) ois.readObject();
+            expenses = (List<Expense>) ois.readObject();
+            System.out.println("저장된 데이터를 불러왔습니다.");
+        } catch (IOException | ClassNotFoundException e) {
+            System.out.println("데이터 불러오기 중 오류 발생: " + e.getMessage());
+        }
+    }
+
+    // 콘솔 실행 메뉴
+    public void runMenu() {
+        Scanner scanner = new Scanner(System.in);
+        while (true) {
+            System.out.println("\n개인 금융 관리 프로그램");
+            System.out.println("1. 로그인");
+            System.out.println("2. 회원가입");
+            System.out.println("3. 사용자 관리");
+            System.out.println("4. 수입 관리");
+            System.out.println("5. 지출 관리");
+            System.out.println("6. 예산 관리");
+            System.out.println("7. 카테고리 관리");
+            System.out.println("8. 검색");
+            System.out.println("9. 통계");
+            System.out.println("10. 데이터 저장 및 불러오기");
+            System.out.println("11. 프로그램종료");
+            System.out.print("선택: ");
+
+            int choice = -1;
+            try {
+                choice = scanner.nextInt();
+                scanner.nextLine();
+            } catch (InputMismatchException e) {
+                System.out.println("숫자를 입력해주세요.");
+                scanner.nextLine();
+                continue;
+            }
+
+            switch (choice) {
+                case 1: loginUser(scanner);
+                break;
+                case 2: registerUser(scanner);
+                break;
+                case 3: manageUser(scanner);
+                break;
+                case 4: addIncome(scanner);
+                break;
+                case 5: addExpense(scanner);
+                break;
+                case 6: manageBudget(scanner);
+                    break;
+                case 7:
+                    System.out.println("1. 지출 카테고리 추가");
+                    System.out.println("2. 지출 카테고리 삭제");
+                    System.out.println("3. 지출 카테고리 목록조회");
+                    int sub = scanner.nextInt();
+                    scanner.nextLine();
+                    if (sub == 1) createCategory(scanner);
+                    else if (sub == 2) deleteCategoryByUserInput(scanner);
+                    else if (sub == 3) displayCategories();
+                    else System.out.println("잘못된 선택입니다.");
+                    break;
+                case 8: search(scanner); break;
+
+                case 9: showStatistics(); break;//통계
+
+                case 10:
+                    saveDataToFile();
+                    System.out.println("프로그램을 종료합니다.");
+                    scanner.close();
+                    return;
+
+                case 11:
+                    System.out.println("프로그램을 종료합니다.");
+                    scanner.close();
+                    return;
+
+                default:
+                    System.out.println("잘못된 선택입니다.");
+            }
+        }
+    }
+//콘솔입력용
+    //1.로그인
+    private void loginUser(Scanner scanner) {
+        System.out.print("사용자 이름: ");
+        String username = scanner.nextLine();
+        System.out.print("비밀번호: ");
+        String password = scanner.nextLine();
+        if (login(username, password)) {
+            System.out.println("로그인 성공");
+        } else {
+            System.out.println("로그인 실패");
+        }
+    }
+//2.회원가입
+    private void registerUser(Scanner scanner) {
+        System.out.print("이름: ");
+        String name = scanner.nextLine();
+        System.out.print("초기 잔액: ");
+        double initialBalance = scanner.nextDouble();
+        scanner.nextLine();
+        registerUser(name, initialBalance);
+    }
+//3.사용자관리
+    private void deleteUser(Scanner scanner) {
+        System.out.print("삭제할 계좌번호: ");
+        String accountId = scanner.nextLine();
+        deleteUser(accountId);
+    }
+
+    //4.수입관리
+    private void addIncome(Scanner scanner) {
+        System.out.print("계좌번호: ");
+        String accountId = scanner.nextLine();
+        System.out.print("수입 금액: ");
+        double amount = scanner.nextDouble();
+        scanner.nextLine();
+        System.out.print("수입 카테고리: ");
+        String category = scanner.nextLine();
+        addIncome(accountId, amount, category, LocalDate.now());
+    }
+
+    //5.지출관리
+    private void addExpense(Scanner scanner) {
+        System.out.print("계좌번호: ");
+        String accountId = scanner.nextLine();
+        System.out.print("지출 금액: ");
+        double amount = scanner.nextDouble();
+        scanner.nextLine();
+        System.out.print("지출 카테고리: ");
+        System.out.println("현재 카테고리:");
+        displayCategories();
+
+        System.out.print("지출 카테고리 입력: ");
+        String category = scanner.nextLine();
+        boolean exists = false;
+        for (Category c : categories) {
+            if (c.getCategoryName().equalsIgnoreCase(category)) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) {
+            addCategory(category);  // 자동 추가
+        }
+        addExpense(accountId, amount, category, LocalDate.now());
+    }
+//7.지출카테고리관리
+//7-1.지출카테고리생성
+    private void createCategory(Scanner scanner) {
+        System.out.print("추가할 카테고리 이름: ");
+        String name = scanner.nextLine();
+        addCategory(name);
+    }
+    //7-2.지출카테고리삭제
+    private void deleteCategoryByUserInput(Scanner scanner) {
+        //현재 카테고리 목록 보여주기
+        System.out.println("현재 카테고리");
+        displayCategories();
+        System.out.print("삭제할 카테고리 이름: ");
+        String name = scanner.nextLine();
+        deleteCategory(name);
+    }
+
+
+
+    public static void main(String[] args) {
+        FinanceManager app = new FinanceManager();
+        app.loadDataFromFile();
+        app.runMenu();
+    }
+}
